@@ -53,6 +53,10 @@ button, .btn {
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (prefers-color-scheme: dark) { button.primary { color: #0d1f1a; } }
 button:disabled { opacity: 0.6; cursor: default; }
+select {
+  font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); max-width: 100%;
+}
 
 .card {
   background: var(--card); border: 1px solid var(--line); border-radius: 12px;

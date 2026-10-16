@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { safeEqual } from '../../../../lib/session';
-import { getAccounts, cashPosition, monthSummary, canIAfford, PLAN, fixedTotal, bucketOf } from '../../../../lib/budget';
+import {
+  getAccounts, cashPosition, periodSummary, canIAfford, PLAN, fixedTotal, BUCKETS, BUCKET_KEYS,
+  loadContext, classify, needsReview, reviewQueue, categorize, addRule,
+} from '../../../../lib/budget';
 import { db, check } from '../../../../lib/db';
 import { syncAll } from '../../../../lib/sync';
 
@@ -11,7 +14,7 @@ export const maxDuration = 60;
 // read this app's data. The secret lives in the URL because claude.ai custom
 // connectors can't send custom headers. Treat the full URL like a password.
 
-const SERVER_INFO = { name: 'money-tracker', version: '0.1.0' };
+const SERVER_INFO = { name: 'money-tracker', version: '0.2.0' };
 
 const TOOLS = [
   {
@@ -33,15 +36,49 @@ const TOOLS = [
   },
   {
     name: 'spending_summary',
-    description: "This month's spending against the plan: safe-to-spend, per-day allowance, each bucket's budget/spent/left, bills, money sent to India, and savings moved.",
+    description: "Spending for the current pay period (last paycheck until the day before the next one) against the plan: safe-to-spend, per-day allowance, each bucket's budget/spent/left, bills, India, big purchases, income and what's left over. Includes how many transactions need review.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_review_queue',
+    description: "Transactions the app isn't sure about (new merchants, large one-offs, Zelle/Venmo to or from people, non-salary income), with the app's guess. Ask the user what each is, then call categorize_transaction.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'categorize_transaction',
+    description: `Set a transaction's bucket. Buckets: ${BUCKET_KEYS.join(', ')}. Use "big_purchase" for one-off large buys paid from savings, "ignore" for moving money between the user's own accounts. Money coming in (negative amount) put in food/yourself offsets that bucket, e.g. a friend paying back. Set remember=true to apply to every future transaction from the same merchant.`,
     inputSchema: {
       type: 'object',
-      properties: { month: { type: 'string', description: 'YYYY-MM, defaults to the current month' } },
+      properties: {
+        id: { type: 'string', description: 'Transaction id from list_review_queue or get_transactions' },
+        bucket: { type: 'string', enum: BUCKET_KEYS },
+        note: { type: 'string', description: 'Short note, e.g. "MacBook"' },
+        remember: { type: 'boolean', description: 'Create a rule for this merchant' },
+      },
+      required: ['id', 'bucket'],
     },
   },
   {
+    name: 'add_rule',
+    description: 'Always put transactions whose merchant/description contains this text into a bucket.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        match: { type: 'string', description: 'Text to match, case-insensitive, e.g. "nibble b" or "spectrum"' },
+        bucket: { type: 'string', enum: BUCKET_KEYS },
+        note: { type: 'string' },
+      },
+      required: ['match', 'bucket'],
+    },
+  },
+  {
+    name: 'list_rules',
+    description: 'The categorization rules saved so far.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'can_i_afford',
-    description: 'Check whether a purchase fits the budget this month. Returns a verdict (yes / tight / no) and the reason.',
+    description: 'Check whether a purchase fits the budget before the next paycheck. Returns a verdict (yes / tight / no) and the reason.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,7 +120,7 @@ async function callTool(name, args = {}) {
       const limit = Math.min(Math.max(Number(args.limit) || 100, 1), 500);
       const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
       let q = db().from('transactions')
-        .select('date,name,merchant_name,amount,category_primary,category_detailed,pending,account_id')
+        .select('id,date,name,merchant_name,amount,category_primary,category_detailed,pending,account_id,bucket_override,note,reviewed_at')
         .gte('date', since)
         .order('date', { ascending: false })
         .limit(limit);
@@ -91,20 +128,35 @@ async function callTool(name, args = {}) {
         const s = String(args.search).replace(/[%,()]/g, ' ');
         q = q.or(`name.ilike.%${s}%,merchant_name.ilike.%${s}%`);
       }
-      const rows = check(await q);
-      return rows.map((t) => ({ ...t, bucket: bucketOf(t) }));
+      const [rows, ctx] = await Promise.all([q.then(check), loadContext()]);
+      return rows.map((t) => {
+        const cls = classify(t, ctx);
+        return {
+          id: t.id, date: t.date, name: t.merchant_name || t.name, description: t.name,
+          amount: Number(t.amount), pending: t.pending, plaid_category: t.category_detailed,
+          bucket: cls.bucket, bucket_source: cls.source, note: t.note, needs_review: needsReview(t, cls),
+        };
+      });
     }
     case 'spending_summary': {
-      const { transactions, ...summary } = await monthSummary(args.month);
-      return summary;
+      const { transactions, ...summary } = await periodSummary();
+      return { ...summary, bucket_labels: BUCKETS };
     }
+    case 'list_review_queue':
+      return reviewQueue();
+    case 'categorize_transaction':
+      return categorize(String(args.id), args.bucket, { note: args.note, remember: Boolean(args.remember) });
+    case 'add_rule':
+      return addRule(args.match, args.bucket, args.note);
+    case 'list_rules':
+      return check(await db().from('rules').select('match,bucket,note,created_at').order('id'));
     case 'can_i_afford': {
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('amount must be a positive number');
       return canIAfford(amount, args.bucket === 'food' ? 'food' : 'yourself');
     }
     case 'get_plan':
-      return { ...PLAN, fixedTotal: Math.round(fixedTotal() * 100) / 100 };
+      { const { owner, ...plan } = PLAN; return { ...plan, fixedTotal: Math.round(fixedTotal() * 100) / 100 }; }
     case 'sync_now':
       return { results: await syncAll() };
     default:
@@ -125,7 +177,7 @@ async function handle(msg) {
           protocolVersion: params?.protocolVersion || '2025-06-18',
           capabilities: { tools: { listChanged: false } },
           serverInfo: SERVER_INFO,
-          instructions: "Arjun's personal money tracker. Use spending_summary or can_i_afford for budget questions; amounts are USD.",
+          instructions: "Arjun's personal money tracker. Budgets run paycheck to paycheck. Use spending_summary or can_i_afford for budget questions. When reviewing, call list_review_queue, ask Arjun about anything unclear, then categorize_transaction (remember=true for repeat merchants). Amounts are USD; positive = money out.",
         });
       case 'ping':
         return reply({});

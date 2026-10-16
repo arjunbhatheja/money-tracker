@@ -1,5 +1,6 @@
 import Actions from '../components/Actions';
-import { getAccounts, cashPosition, monthSummary, PLAN, bucketOf } from '../lib/budget';
+import Review from '../components/Review';
+import { getAccounts, cashPosition, periodSummary, reviewQueue, PLAN, BUCKETS } from '../lib/budget';
 import { db, check } from '../lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,7 @@ export const runtime = 'nodejs';
 const usd = (n) =>
   Number(n ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const usd2 = (n) => Number(n ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const shortDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 function Bar({ spent, budget }) {
   const pct = budget > 0 ? Math.min(100, Math.max(0, (spent / budget) * 100)) : 0;
@@ -15,17 +17,16 @@ function Bar({ spent, budget }) {
   return <div className={cls}><span style={{ width: `${pct}%` }} /></div>;
 }
 
-const BUCKET_LABEL = { food: 'Food', yourself: 'Yourself', bills: 'Bills', india: 'India', savings: 'Savings' };
-
 export default async function Dashboard() {
   let data;
   try {
-    const [summary, accounts, items] = await Promise.all([
-      monthSummary(),
+    const [summary, accounts, items, review] = await Promise.all([
+      periodSummary(),
       getAccounts(),
       db().from('items').select('id,institution,status,last_synced_at,last_error').then(check),
+      reviewQueue(),
     ]);
-    data = { summary, accounts, items, pos: cashPosition(accounts) };
+    data = { summary, accounts, items, review, pos: cashPosition(accounts) };
   } catch (err) {
     return (
       <main>
@@ -33,14 +34,14 @@ export default async function Dashboard() {
         <div className="card">
           <h2>Setup needed</h2>
           <p>{err.message}</p>
-          <p className="muted">Check the environment variables in Vercel and that the database migration has run.</p>
+          <p className="muted">Check the environment variables in Vercel and that the database migrations have run.</p>
         </div>
       </main>
     );
   }
 
-  const { summary, accounts, items, pos } = data;
-  const monthName = new Date(`${summary.month}-15`).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const { summary, accounts, items, review, pos } = data;
+  const { period } = summary;
 
   if (!items.length) {
     return (
@@ -55,12 +56,12 @@ export default async function Dashboard() {
   }
 
   const broken = items.filter((i) => i.status !== 'ok');
-  const safeClass = summary.safeToSpend < 0 ? 'bad' : '';
+  const periodLabel = `${shortDate(period.start)} – ${shortDate(period.end)}`;
 
   return (
     <main>
       <header className="top">
-        <h1>Money Tracker <span className="muted" style={{ fontWeight: 400 }}>· {monthName}</span></h1>
+        <h1>Money Tracker <span className="muted" style={{ fontWeight: 400 }}>· {periodLabel}</span></h1>
         <Actions hasItems />
       </header>
 
@@ -77,24 +78,26 @@ export default async function Dashboard() {
       )}
 
       <div className="card">
-        <h2>Safe to spend this month</h2>
+        <h2>Safe to spend until payday</h2>
         <div className="hero">
           <div>
-            <div className="big" style={safeClass ? { color: 'var(--bad)' } : undefined}>{usd(summary.safeToSpend)}</div>
+            <div className="big" style={summary.safeToSpend < 0 ? { color: 'var(--bad)' } : undefined}>{usd(summary.safeToSpend)}</div>
             <div className="sub">
-              {usd(summary.perDay)}/day for the next {summary.daysLeft} {summary.daysLeft === 1 ? 'day' : 'days'}
+              {usd(summary.perDay)}/day for {summary.daysLeft} {summary.daysLeft === 1 ? 'day' : 'days'} · next paycheck ~{shortDate(period.nextPayday)}
             </div>
           </div>
           <div className="sub" style={{ textAlign: 'right' }}>
-            Food + yourself budget: {usd(PLAN.buckets.food + PLAN.buckets.yourself)}
+            {period.lastPaycheck ? <>Last paycheck {usd(period.lastPaycheck.amount)} on {shortDate(period.lastPaycheck.date)}</> : 'No paycheck found yet'}
           </div>
         </div>
       </div>
 
+      <Review items={review} />
+
       <div className="grid">
         {Object.entries(summary.buckets).map(([k, b]) => (
           <div className="card stat" key={k}>
-            <div className="label">{BUCKET_LABEL[k]}</div>
+            <div className="label">{BUCKETS[k]}</div>
             <div className="value">{usd(b.left)} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>left</span></div>
             <Bar spent={b.spent} budget={b.budget} />
             <div className="muted" style={{ fontSize: 13 }}>{usd(b.spent)} of {usd(b.budget)}</div>
@@ -109,11 +112,18 @@ export default async function Dashboard() {
 
       <div className="grid">
         <div className="card">
-          <h2>Plan check</h2>
+          <h2>This paycheck</h2>
+          <div className="row"><span>Income</span><span className="num in">{usd(summary.income)}</span></div>
           <div className="row"><span>Bills</span><span className="num">{usd(summary.bills.paid)} / {usd(summary.bills.planned)}</span></div>
+          <div className="row"><span>Food + yourself</span><span className="num">{usd(summary.buckets.food.spent + summary.buckets.yourself.spent)} / {usd(PLAN.buckets.food + PLAN.buckets.yourself)}</span></div>
           <div className="row"><span>India</span><span className="num">{usd(summary.india.sent)} / {usd(summary.india.planned)}</span></div>
-          <div className="row"><span>Savings moved</span><span className="num">{usd(summary.savings.moved)} / {usd(summary.savings.planned)}</span></div>
-          <div className="row"><span>Income received</span><span className="num in">{usd(summary.income)}</span></div>
+          {summary.bigPurchases > 0 && (
+            <div className="row"><span>Big purchases (from savings)</span><span className="num">{usd(summary.bigPurchases)}</span></div>
+          )}
+          <div className="row">
+            <span><strong>Left over</strong> <span className="muted" style={{ fontSize: 13 }}>· target {usd(PLAN.savings)}</span></span>
+            <span className="num" style={{ fontWeight: 650, color: summary.leftOver < 0 ? 'var(--bad)' : undefined }}>{usd(summary.leftOver)}</span>
+          </div>
         </div>
 
         <div className="card">
@@ -131,23 +141,22 @@ export default async function Dashboard() {
       </div>
 
       <div className="card">
-        <h2>Recent transactions</h2>
-        {summary.transactions.slice(0, 25).map((t) => {
-          const b = bucketOf(t);
+        <h2>Transactions this paycheck</h2>
+        {summary.transactions.slice(0, 40).map((t) => {
           const amt = Number(t.amount);
           return (
             <div className="row" key={t.id}>
               <div className="left">
-                <div className="name">{t.merchant_name || t.name}</div>
+                <div className="name">{t.note ? `${t.merchant_name || t.name} — ${t.note}` : (t.merchant_name || t.name)}</div>
                 <div className="meta">
-                  {t.date}{b ? ` · ${BUCKET_LABEL[b]}` : ' · not counted'}{t.pending ? ' · pending' : ''}
+                  {t.date} · {BUCKETS[t.bucket]}{t.pending ? ' · pending' : ''}{t.review ? ' · to review' : ''}
                 </div>
               </div>
               <span className={`num ${amt < 0 ? 'in' : ''}`}>{amt < 0 ? '+' : ''}{usd2(Math.abs(amt))}</span>
             </div>
           );
         })}
-        {summary.transactions.length === 0 && <p className="muted">No transactions this month yet.</p>}
+        {summary.transactions.length === 0 && <p className="muted">No transactions yet this pay period.</p>}
       </div>
 
       <p className="muted" style={{ fontSize: 13 }}>
