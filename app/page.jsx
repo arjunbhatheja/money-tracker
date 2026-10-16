@@ -141,8 +141,11 @@ export default async function Dashboard() {
       </div>
 
       <div className="card">
-        <h2>Transactions this paycheck</h2>
-        {summary.transactions.slice(0, 40).map((t) => {
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+          <h2>Transactions this paycheck ({summary.transactions.length})</h2>
+          <a href="/transactions" style={{ color: 'var(--accent)', fontSize: 14 }}>All transactions →</a>
+        </div>
+        {summary.transactions.map((t) => {
           const amt = Number(t.amount);
           return (
             <div className="row" key={t.id}>
