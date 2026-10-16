@@ -96,12 +96,12 @@ export default async function Dashboard() {
 
       <div className="grid">
         {Object.entries(summary.buckets).map(([k, b]) => (
-          <div className="card stat" key={k}>
-            <div className="label">{BUCKETS[k]}</div>
+          <a className="card stat clickable" key={k} href={`/transactions?bucket=${k}&period=current`}>
+            <div className="label">{BUCKETS[k]} <span className="muted">›</span></div>
             <div className="value">{usd(b.left)} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>left</span></div>
             <Bar spent={b.spent} budget={b.budget} />
             <div className="muted" style={{ fontSize: 13 }}>{usd(b.spent)} of {usd(b.budget)}</div>
-          </div>
+          </a>
         ))}
         <div className="card stat">
           <div className="label">Cash after card balances</div>
@@ -113,13 +113,13 @@ export default async function Dashboard() {
       <div className="grid">
         <div className="card">
           <h2>This paycheck</h2>
-          <div className="row"><span>Income</span><span className="num in">{usd(summary.income)}</span></div>
-          <div className="row"><span>Bills</span><span className="num">{usd(summary.bills.paid)} / {usd(summary.bills.planned)}</span></div>
-          <div className="row"><span>Food + yourself</span><span className="num">{usd(summary.buckets.food.spent + summary.buckets.yourself.spent)} / {usd(PLAN.buckets.food + PLAN.buckets.yourself)}</span></div>
-          <div className="row"><span>India</span><span className="num">{usd(summary.india.sent)} / {usd(summary.india.planned)}</span></div>
-          {summary.bigPurchases > 0 && (
-            <div className="row"><span>Big purchases (from savings)</span><span className="num">{usd(summary.bigPurchases)}</span></div>
-          )}
+          <a className="row clickable" href="/transactions?bucket=income&period=current"><span>Income ›</span><span className="num in">{usd(summary.income)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=bills&period=current"><span>Bills ›</span><span className="num">{usd(summary.bills.paid)} / {usd(summary.bills.planned)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=food&period=current"><span>Food ›</span><span className="num">{usd(summary.buckets.food.spent)} / {usd(PLAN.buckets.food)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=yourself&period=current"><span>Yourself ›</span><span className="num">{usd(summary.buckets.yourself.spent)} / {usd(PLAN.buckets.yourself)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=india&period=current"><span>India ›</span><span className="num">{usd(summary.india.sent)} / {usd(summary.india.planned)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=big_purchase&period=current"><span>Big purchases (from savings) ›</span><span className="num">{usd(summary.bigPurchases)}</span></a>
+          <a className="row clickable" href="/transactions?bucket=ignore&period=current"><span className="muted">Not counted (card payments, transfers) ›</span><span className="num muted">—</span></a>
           <div className="row">
             <span><strong>Left over</strong> <span className="muted" style={{ fontSize: 13 }}>· target {usd(PLAN.savings)}</span></span>
             <span className="num" style={{ fontWeight: 650, color: summary.leftOver < 0 ? 'var(--bad)' : undefined }}>{usd(summary.leftOver)}</span>

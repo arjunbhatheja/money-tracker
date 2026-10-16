@@ -12,36 +12,75 @@ const OPTIONS = [
   ['income', 'Income'],
   ['ignore', 'Not counted'],
 ];
+const LABEL = Object.fromEntries(OPTIONS);
 
 const usd2 = (n) => Math.abs(Number(n)).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-// One transaction with an inline category picker.
-export default function TxRow({ t }) {
+async function post(body) {
+  const res = await fetch('/api/categorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || 'Could not save');
+  return j;
+}
+
+// One transaction: rename it, or move it to another category (optionally for good).
+export default function TxRow({ t, filterBucket }) {
   const [bucket, setBucket] = useState(t.bucket);
   const [saved, setSaved] = useState(t.bucket);
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [note, setNote] = useState(t.note || '');
+  const [editing, setEditing] = useState(false);
   const [state, setState] = useState('');
   const amt = Number(t.amount);
-  const name = t.merchant_name || t.name;
+  const merchant = t.merchant_name || t.name;
+  const moved = filterBucket && saved !== filterBucket;
 
   async function save() {
     setState('saving');
-    const res = await fetch('/api/categorize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: t.id, bucket, remember }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (res.ok) { setSaved(bucket); setState(remember ? 'saved + rule' : 'saved'); }
-    else setState(j.error || 'error');
+    try {
+      await post({ id: t.id, bucket, remember });
+      setSaved(bucket);
+      setState(remember ? `Moved to ${LABEL[bucket]} · will remember for ${merchant}` : `Moved to ${LABEL[bucket]}`);
+    } catch (e) { setState(e.message); }
+  }
+
+  async function saveName() {
+    setState('saving');
+    try {
+      await post({ id: t.id, rename: note });
+      setEditing(false);
+      setState('Renamed');
+    } catch (e) { setState(e.message); }
   }
 
   return (
-    <div className="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+    <div className="row" style={{ flexWrap: 'wrap', alignItems: 'center', opacity: moved ? 0.55 : 1 }}>
       <div className="left" style={{ flex: '1 1 240px' }}>
-        <div className="name">{t.note ? `${name} — ${t.note}` : name}</div>
+        {editing ? (
+          <div className="actions" style={{ alignItems: 'center' }}>
+            <input
+              value={note}
+              autoFocus
+              placeholder={`What was this? (e.g. "Haircut")`}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditing(false); }}
+              style={{ font: 'inherit', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', minWidth: 180 }}
+            />
+            <button className="primary" onClick={saveName}>Save</button>
+            <button onClick={() => { setEditing(false); setNote(t.note || ''); }}>Cancel</button>
+          </div>
+        ) : (
+          <div className="name" title="Rename" style={{ cursor: 'pointer' }} onClick={() => setEditing(true)}>
+            {note ? <>{note} <span className="muted" style={{ fontWeight: 400 }}>· {merchant}</span></> : merchant}
+            <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>✎</span>
+          </div>
+        )}
         <div className="meta">
-          {t.date} · {t.account}{t.pending ? ' · pending' : ''}{t.review ? ' · to review' : ''}
+          {t.date}{t.account ? ` · ${t.account}` : ''}{t.pending ? ' · pending' : ''}{t.review ? ' · to review' : ''}
           {t.source === 'rule' ? ' · by rule' : t.source === 'override' ? ' · set by you' : ''}
         </div>
       </div>
@@ -49,19 +88,19 @@ export default function TxRow({ t }) {
         <span className={`num ${amt < 0 ? 'in' : ''}`} style={{ minWidth: 90, textAlign: 'right' }}>
           {amt < 0 ? '+' : ''}{usd2(amt)}
         </span>
-        <select value={bucket} onChange={(e) => { setBucket(e.target.value); setState(''); }}>
+        <select value={bucket} onChange={(e) => { setBucket(e.target.value); setState(''); }} aria-label="Category">
           {OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         {bucket !== saved && (
           <>
-            <label className="muted" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }}>
+            <label className="muted" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }} title={`Apply to every ${merchant} transaction from now on`}>
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> always
             </label>
-            <button className="primary" onClick={save} disabled={state === 'saving'}>Save</button>
+            <button className="primary" onClick={save} disabled={state === 'saving'}>Move</button>
           </>
         )}
-        {state && state !== 'saving' && <span className="muted" style={{ fontSize: 12 }}>{state}</span>}
       </div>
+      {state && state !== 'saving' && <div className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{state}</div>}
     </div>
   );
 }
