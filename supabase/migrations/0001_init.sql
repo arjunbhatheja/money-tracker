@@ -46,6 +46,8 @@ create table if not exists transactions (
 
 create index if not exists transactions_date_idx on transactions (date desc);
 create index if not exists transactions_account_idx on transactions (account_id);
+create index if not exists transactions_item_idx on transactions (item_id);
+create index if not exists accounts_item_idx on accounts (item_id);
 
 alter table items        enable row level security;
 alter table accounts     enable row level security;
