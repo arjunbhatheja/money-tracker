@@ -4,10 +4,10 @@ import { mcpSecretOk, handleMcpPost, methodNotAllowed } from '../../../lib/mcp';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// MCP with the secret in a request header: X-MCP-Secret: <MCP_SECRET>
-// (or Authorization: Bearer <MCP_SECRET>).
+// MCP with the secret in a request header: Authorization: Bearer <MCP_SECRET>
+// (or X-API-Key / X-MCP-Secret: <MCP_SECRET>).
 function secretFrom(req) {
-  const h = req.headers.get('x-mcp-secret');
+  const h = req.headers.get('x-mcp-secret') || req.headers.get('x-api-key');
   if (h) return h;
   const auth = req.headers.get('authorization') || '';
   return auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : '';
