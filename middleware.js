@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from './lib/session';
 
 // These routes authenticate themselves (Plaid webhook, cron secret, MCP secret).
-const PUBLIC_PREFIXES = ['/login', '/api/login', '/api/plaid/webhook', '/api/cron/', '/api/mcp/'];
+const PUBLIC_PREFIXES = ['/login', '/api/login', '/api/plaid/webhook', '/api/cron/', '/api/mcp'];
 
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
