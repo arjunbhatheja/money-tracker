@@ -43,7 +43,7 @@ export default async function Transactions({ searchParams }) {
         <Link className="btn" href="/" style={{ textDecoration: 'none' }}>← Dashboard</Link>
       </header>
 
-      <div className="actions" style={{ marginBottom: 12 }}>
+      <div className="chips" style={{ marginBottom: 12 }}>
         <Link className="btn" href={href({ bucket: '' })} style={{ textDecoration: 'none', borderColor: !bucket ? 'var(--accent)' : undefined }}>All</Link>
         {Object.entries(BUCKETS).map(([k, l]) => (
           <Link key={k} className="btn" href={href({ bucket: k })}

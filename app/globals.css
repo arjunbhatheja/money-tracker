@@ -104,3 +104,37 @@ a.clickable { color: inherit; text-decoration: none; display: flex; }
 a.card.clickable { display: block; transition: border-color .15s; }
 a.clickable:hover { border-color: var(--accent); }
 a.row.clickable:hover span:first-child { color: var(--accent); }
+
+/* ---------- phones ---------- */
+main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); padding-bottom: max(64px, env(safe-area-inset-bottom)); }
+.chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips .btn { white-space: nowrap; flex: none; }
+.btn { display: inline-flex; align-items: center; }
+
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  main { padding-top: 14px; }
+  header.top { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+  header.top h1 { font-size: 17px; }
+  header.top .actions { justify-content: stretch; }
+  header.top .actions > * { flex: 1; }
+  header.top > div[style] { text-align: left !important; }
+  .card { padding: 14px; border-radius: 10px; margin-bottom: 12px; }
+  .grid { gap: 12px; grid-template-columns: 1fr 1fr; }
+  .grid > .card:not(.stat) { grid-column: 1 / -1; }
+  .stat .value { font-size: 19px; }
+  .hero { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .hero .big { font-size: 38px; }
+  .hero .sub[style] { text-align: left !important; }
+  /* 16px inputs stop iOS from zooming in on focus; bigger tap targets */
+  button, .btn, select, input { font-size: 16px !important; min-height: 40px; }
+  input[type="checkbox"] { min-height: 0; width: 20px; height: 20px; }
+  .row { padding: 10px 0; }
+  .row .actions { width: 100%; justify-content: flex-end; }
+  .row .actions select { flex: 1; min-width: 0; }
+  .meta { font-size: 12.5px; }
+}
+@media (max-width: 380px) {
+  .grid { grid-template-columns: 1fr; }
+}
