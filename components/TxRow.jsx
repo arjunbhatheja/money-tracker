@@ -1,20 +1,25 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Sheet from './Sheet';
+import { showToast } from './Toaster';
 
 const OPTIONS = [
-  ['food', 'Food'],
-  ['yourself', 'Yourself'],
-  ['bills', 'Bills'],
-  ['india', 'India'],
-  ['big_purchase', 'Big purchase (from savings)'],
-  ['savings', 'Savings / investing'],
-  ['income', 'Income'],
-  ['ignore', 'Not counted'],
+  ['food', 'Food', 'Groceries, restaurants, coffee'],
+  ['yourself', 'Yourself', 'Shopping, rides, fun, subscriptions'],
+  ['bills', 'Bills', 'Rent, utilities, insurance, fuel'],
+  ['india', 'India', 'Money sent home'],
+  ['big_purchase', 'Big purchase', 'One-off, paid from savings'],
+  ['savings', 'Savings and investing', 'Moved to savings or investments'],
+  ['income', 'Income', 'Pay, interest, bonuses'],
+  ['ignore', 'Not counted', 'Card payments, moving your own money'],
 ];
-const LABEL = Object.fromEntries(OPTIONS);
+const LABEL = Object.fromEntries(OPTIONS.map(([k, l]) => [k, l]));
 
 const usd2 = (n) => Math.abs(Number(n)).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const longDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const shortDate = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 async function post(body) {
   const res = await fetch('/api/categorize', {
@@ -27,79 +32,137 @@ async function post(body) {
   return j;
 }
 
-// One transaction: rename it, or move it to another category (optionally for good).
-export default function TxRow({ t, filterBucket }) {
+// Tap a transaction to open a sheet: rename it, move it, and choose whether
+// future transactions from the same merchant follow. Every change can be undone.
+export default function TxRow({ t, showAccount = true }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [bucket, setBucket] = useState(t.bucket);
-  const [saved, setSaved] = useState(t.bucket);
-  const [remember, setRemember] = useState(true);
   const [note, setNote] = useState(t.note || '');
-  const [editing, setEditing] = useState(false);
-  const [state, setState] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const amt = Number(t.amount);
   const merchant = t.merchant_name || t.name;
-  const moved = filterBucket && saved !== filterBucket;
+  const changedBucket = bucket !== t.bucket;
+  const changedNote = (note.trim() || '') !== (t.note || '');
 
-  async function save() {
-    setState('saving');
-    try {
-      await post({ id: t.id, bucket, remember });
-      setSaved(bucket);
-      setState(remember ? `Moved to ${LABEL[bucket]}. Future ${merchant} transactions will follow.` : `Moved to ${LABEL[bucket]}`);
-    } catch (e) { setState(e.message); }
+  function openSheet() {
+    setBucket(t.bucket); setNote(t.note || ''); setRemember(true); setError(''); setOpen(true);
   }
 
-  async function saveName() {
-    setState('saving');
+  async function save() {
+    setBusy(true); setError('');
     try {
-      await post({ id: t.id, rename: note });
-      setEditing(false);
-      setState('Renamed');
-    } catch (e) { setState(e.message); }
+      let undo, text;
+      if (changedBucket) {
+        const r = await post({ id: t.id, bucket, remember, note: changedNote ? note.trim() || null : undefined });
+        undo = { id: t.id, previous: r.previous, rule: r.rule };
+        text = remember ? `Moved to ${LABEL[bucket]}. Future ${merchant} transactions will follow.` : `Moved to ${LABEL[bucket]}.`;
+      } else {
+        const r = await post({ id: t.id, rename: note });
+        undo = { id: t.id, previous: r.previous };
+        text = note.trim() ? `Renamed to ${note.trim()}.` : 'Name reset.';
+      }
+      navigator.vibrate?.(10);
+      setOpen(false);
+      router.refresh();
+      showToast({
+        text,
+        actionLabel: 'Undo',
+        onAction: async () => {
+          await post({ undo });
+          router.refresh();
+          showToast({ text: 'Undone.', duration: 2500 });
+        },
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="row" style={{ flexWrap: 'wrap', alignItems: 'center', opacity: moved ? 0.55 : 1 }}>
-      <div className="left" style={{ flex: '1 1 240px' }}>
-        {editing ? (
-          <div className="actions" style={{ alignItems: 'center' }}>
-            <input
-              value={note}
-              autoFocus
-              placeholder={`What was this? (e.g. "Haircut")`}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditing(false); }}
-              style={{ font: 'inherit', padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', minWidth: 180 }}
-            />
-            <button className="primary" onClick={saveName}>Save</button>
-            <button onClick={() => { setEditing(false); setNote(t.note || ''); }}>Cancel</button>
-          </div>
-        ) : (
-          <div className="name" title="Rename" style={{ cursor: 'pointer' }} onClick={() => setEditing(true)}>
-            {note || merchant}
-          </div>
-        )}
-        <div className="meta">
-          {t.date}{note ? `, ${merchant}` : ''}{t.account ? `, ${t.account}` : ''}{t.pending ? ', pending' : ''}{t.review ? ', needs review' : ''}
-          {t.source === 'rule' ? ', by rule' : t.source === 'override' ? ', set by you' : ''}
-        </div>
-      </div>
-      <div className="actions" style={{ alignItems: 'center' }}>
-        <span className={`num ${amt < 0 ? 'in' : ''}`} style={{ minWidth: 90, textAlign: 'right' }}>
-          {amt < 0 ? '+' : ''}{usd2(amt)}
+    <>
+      <button type="button" className="row tx" onClick={openSheet} aria-haspopup="dialog">
+        <span className="left">
+          <span className="name">{t.note || merchant}</span>
+          <span className="meta">
+            {shortDate(t.date)}, {LABEL[t.bucket]}
+            {t.note ? `, ${merchant}` : ''}
+            {showAccount && t.account ? `, ${t.account}` : ''}
+            {t.pending ? ', pending' : ''}
+          </span>
         </span>
-        <select value={bucket} onChange={(e) => { setBucket(e.target.value); setState(''); }} aria-label="Category">
-          {OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        {bucket !== saved && (
+        <span className="tx-right">
+          {t.review && <span className="dot" aria-label="Needs review" />}
+          <span className={`num ${amt < 0 ? 'in' : ''}`}>{amt < 0 ? '+' : ''}{usd2(amt)}</span>
+          <span className="chev" aria-hidden="true" />
+        </span>
+      </button>
+
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Transaction"
+        footer={
           <>
-            <label className="muted" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }} title={`Apply to every ${merchant} transaction from now on`}>
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Always
-            </label>
-            <button className="primary" onClick={save} disabled={state === 'saving'}>Move</button>
+            {error && <p className="error" role="alert">{error}</p>}
+            <button className="primary wide" onClick={save} disabled={busy || (!changedBucket && !changedNote)}>
+              {busy ? 'Saving…' : changedBucket ? `Move to ${LABEL[bucket]}` : 'Save name'}
+            </button>
           </>
+        }
+      >
+        <div className="sheet-hero">
+          <div className={`sheet-amount ${amt < 0 ? 'in' : ''}`}>{amt < 0 ? '+' : ''}{usd2(amt)}</div>
+          <div className="muted">{merchant}</div>
+          <div className="muted small">{longDate(t.date)}{t.account ? `, ${t.account}` : ''}{t.pending ? ', pending' : ''}</div>
+        </div>
+
+        <label className="field">
+          <span>Name</span>
+          <input
+            type="text"
+            value={note}
+            placeholder={merchant}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={120}
+          />
+        </label>
+
+        <div className="group-label">Category</div>
+        <div className="choices" role="radiogroup" aria-label="Category">
+          {OPTIONS.map(([k, l, hint]) => (
+            <button
+              type="button"
+              key={k}
+              role="radio"
+              aria-checked={bucket === k}
+              className="choice"
+              data-autofocus={bucket === k ? '' : undefined}
+              onClick={() => setBucket(k)}
+            >
+              <span>
+                <span className="choice-label">{l}</span>
+                <span className="choice-hint">{hint}</span>
+              </span>
+              <span className="check" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+
+        {changedBucket && (
+          <label className="toggle-row">
+            <span>
+              <span className="choice-label">Always for {merchant}</span>
+              <span className="choice-hint">Future transactions from this merchant go to {LABEL[bucket]}</span>
+            </span>
+            <input type="checkbox" className="switch" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          </label>
         )}
-      </div>
-      {state && state !== 'saving' && <div className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{state}</div>}
-    </div>
+      </Sheet>
+    </>
   );
 }

@@ -1,4 +1,6 @@
 import './globals.css';
+import Toaster from '../components/Toaster';
+import ScrollEdge from '../components/ScrollEdge';
 
 export const metadata = {
   title: 'Money Tracker',
@@ -20,7 +22,11 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+        <ScrollEdge />
+      </body>
     </html>
   );
 }

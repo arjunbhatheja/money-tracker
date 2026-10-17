@@ -79,9 +79,9 @@ export default async function Transactions({ searchParams }) {
           </span>
         </div>
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Tap a name to rename it. Pick a new category and tap Move. With Always on, future transactions from that merchant follow.
+          Tap a transaction to rename it or move it to another category.
         </p>
-        {rows.map((t) => <TxRow key={t.id} t={t} filterBucket={bucket} />)}
+        {rows.map((t) => <TxRow key={t.id} t={t} />)}
         {rows.length === 0 && <p className="muted">Nothing here.</p>}
         {pages > 1 && (
           <div className="actions" style={{ justifyContent: 'space-between', marginTop: 12 }}>

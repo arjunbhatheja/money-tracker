@@ -1,6 +1,7 @@
 import Actions from '../components/Actions';
 import Review from '../components/Review';
 import RangePicker from '../components/RangePicker';
+import TxRow from '../components/TxRow';
 import { getAccounts, cashPosition, periodSummary, reviewQueue, PLAN, BUCKETS } from '../lib/budget';
 import { db, check } from '../lib/db';
 
@@ -30,7 +31,7 @@ function Ring({ spent, budget }) {
     <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${Math.round(pct * 100)}% of flexible budget used`}>
       <circle className="track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
       <circle className="value" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} stroke={color}
-        strokeDasharray={c} strokeDashoffset={c * (1 - shown)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        strokeDasharray={c} strokeDashoffset={c * (1 - shown)} style={{ '--c': c }} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="currentColor"
         style={{ font: '700 24px -apple-system, system-ui, sans-serif', letterSpacing: '-0.03em' }}>
         {Math.round(pct * 100)}%
@@ -202,20 +203,7 @@ export default async function Dashboard({ searchParams }) {
           <h2>Transactions <span>{summary.transactions.length}</span></h2>
           <a href={`/transactions?${qs.toString()}`} style={{ fontSize: 15 }}>See all</a>
         </div>
-        {summary.transactions.slice(0, SHOWN).map((t) => {
-          const amt = Number(t.amount);
-          return (
-            <div className="row" key={t.id}>
-              <div className="left">
-                <div className="name">{t.note || t.merchant_name || t.name}</div>
-                <div className="meta">
-                  {shortDate(t.date)}, {BUCKETS[t.bucket]}{t.note ? `, ${t.merchant_name || t.name}` : ''}{t.pending ? ', pending' : ''}{t.review ? ', needs review' : ''}
-                </div>
-              </div>
-              <span className={`num ${amt < 0 ? 'in' : ''}`}>{amt < 0 ? '+' : ''}{usd2(Math.abs(amt))}</span>
-            </div>
-          );
-        })}
+        {summary.transactions.slice(0, SHOWN).map((t) => <TxRow key={t.id} t={t} showAccount={false} />)}
         {summary.transactions.length > SHOWN && (
           <p className="muted" style={{ fontSize: 13 }}>
             Showing the latest {SHOWN}. <a href={`/transactions?${qs.toString()}`}>See all {summary.transactions.length}</a>
