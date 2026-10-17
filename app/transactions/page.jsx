@@ -31,16 +31,15 @@ export default async function Transactions({ searchParams }) {
   };
 
   const title = bucket ? BUCKETS[bucket] : 'All transactions';
-  const when = range ? `${range.label} · ${shortDate(range.start)} – ${shortDate(range.end)}` : 'All time';
+  const when = range ? `${shortDate(range.start)} – ${shortDate(range.end)}` : 'All time';
 
   return (
     <main>
       <header className="top">
         <h1>
-          <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>Money Tracker</Link>{' '}
-          <span className="muted" style={{ fontWeight: 400 }}>· {title}</span>
+          {title} <span className="muted">{when}</span>
         </h1>
-        <Link className="btn" href="/" style={{ textDecoration: 'none' }}>← Dashboard</Link>
+        <Link className="btn" href="/" style={{ textDecoration: 'none' }}>Done</Link>
       </header>
 
       <div className="chips" style={{ marginBottom: 12 }}>
@@ -54,7 +53,7 @@ export default async function Transactions({ searchParams }) {
       </div>
 
       <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 18px' }}>
-        <span className="muted" style={{ fontSize: 14 }}>Time period</span>
+        <span style={{ fontWeight: 600, letterSpacing: '-0.02em' }}>Period</span>
         <RangePicker value={rangeKey} from={rangeKey === 'custom' ? range.start : ''} to={rangeKey === 'custom' ? range.end : ''} />
       </div>
 
@@ -74,20 +73,20 @@ export default async function Transactions({ searchParams }) {
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <h2>{title} · {when}</h2>
+          <h2>{total.toLocaleString()} transactions</h2>
           <span className="muted" style={{ fontSize: 14 }}>
-            {total.toLocaleString()} transactions · net {sum < 0 ? '+' : ''}{usd(sum)}{pages > 1 ? ` · page ${page} of ${pages}` : ''}
+            Net {sum < 0 ? '+' : ''}{usd(sum)}{pages > 1 ? `, page ${page} of ${pages}` : ''}
           </span>
         </div>
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Click a name to rename it. Change the category and press Move; “always” teaches it for that merchant from now on.
+          Tap a name to rename it. Pick a new category and tap Move. With Always on, future transactions from that merchant follow.
         </p>
         {rows.map((t) => <TxRow key={t.id} t={t} filterBucket={bucket} />)}
         {rows.length === 0 && <p className="muted">Nothing here.</p>}
         {pages > 1 && (
           <div className="actions" style={{ justifyContent: 'space-between', marginTop: 12 }}>
-            {page > 1 ? <Link className="btn" href={href({ page: page - 1 })} style={{ textDecoration: 'none' }}>← Newer</Link> : <span />}
-            {page < pages ? <Link className="btn" href={href({ page: page + 1 })} style={{ textDecoration: 'none' }}>Older →</Link> : <span />}
+            {page > 1 ? <Link className="btn" href={href({ page: page - 1 })} style={{ textDecoration: 'none' }}>Newer</Link> : <span />}
+            {page < pages ? <Link className="btn" href={href({ page: page + 1 })} style={{ textDecoration: 'none' }}>Older</Link> : <span />}
           </div>
         )}
       </div>

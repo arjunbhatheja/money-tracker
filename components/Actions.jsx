@@ -99,7 +99,7 @@ export default function Actions({ hasItems }) {
     <div style={{ textAlign: 'right' }}>
       <div className="actions">
         {hasItems && <button onClick={sync} disabled={busy}>Sync</button>}
-        <button className="primary" onClick={connect} disabled={busy}>Connect a bank</button>
+        <button className="primary" onClick={connect} disabled={busy}>Add bank</button>
         <button onClick={logout}>Sign out</button>
       </div>
       {status && <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>{status}</div>}

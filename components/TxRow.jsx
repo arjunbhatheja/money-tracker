@@ -44,7 +44,7 @@ export default function TxRow({ t, filterBucket }) {
     try {
       await post({ id: t.id, bucket, remember });
       setSaved(bucket);
-      setState(remember ? `Moved to ${LABEL[bucket]} · will remember for ${merchant}` : `Moved to ${LABEL[bucket]}`);
+      setState(remember ? `Moved to ${LABEL[bucket]}. Future ${merchant} transactions will follow.` : `Moved to ${LABEL[bucket]}`);
     } catch (e) { setState(e.message); }
   }
 
@@ -75,13 +75,12 @@ export default function TxRow({ t, filterBucket }) {
           </div>
         ) : (
           <div className="name" title="Rename" style={{ cursor: 'pointer' }} onClick={() => setEditing(true)}>
-            {note ? <>{note} <span className="muted" style={{ fontWeight: 400 }}>· {merchant}</span></> : merchant}
-            <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>✎</span>
+            {note || merchant}
           </div>
         )}
         <div className="meta">
-          {t.date}{t.account ? ` · ${t.account}` : ''}{t.pending ? ' · pending' : ''}{t.review ? ' · to review' : ''}
-          {t.source === 'rule' ? ' · by rule' : t.source === 'override' ? ' · set by you' : ''}
+          {t.date}{note ? `, ${merchant}` : ''}{t.account ? `, ${t.account}` : ''}{t.pending ? ', pending' : ''}{t.review ? ', needs review' : ''}
+          {t.source === 'rule' ? ', by rule' : t.source === 'override' ? ', set by you' : ''}
         </div>
       </div>
       <div className="actions" style={{ alignItems: 'center' }}>
@@ -94,7 +93,7 @@ export default function TxRow({ t, filterBucket }) {
         {bucket !== saved && (
           <>
             <label className="muted" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }} title={`Apply to every ${merchant} transaction from now on`}>
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> always
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Always
             </label>
             <button className="primary" onClick={save} disabled={state === 'saving'}>Move</button>
           </>

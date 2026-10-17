@@ -4,8 +4,8 @@ export default function manifest() {
     short_name: 'Money',
     start_url: '/',
     display: 'standalone',
-    background_color: '#121311',
-    theme_color: '#1f6f5c',
+    background_color: '#000000',
+    theme_color: '#f2f2f7',
     icons: [{ src: '/icon.png', sizes: '512x512', type: 'image/png' }],
   };
 }

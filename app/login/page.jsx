@@ -27,7 +27,8 @@ export default function Login() {
 
   return (
     <div className="login">
-      <h1 style={{ fontSize: 20, margin: 0 }}>Money Tracker</h1>
+      <h1 style={{ margin: 0 }}>Money</h1>
+      <p className="muted" style={{ margin: '6px 0 0' }}>Sign in to see your budget.</p>
       <form onSubmit={submit}>
         <input
           type="password"

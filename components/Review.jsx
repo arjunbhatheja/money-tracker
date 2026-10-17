@@ -38,7 +38,7 @@ function Item({ item, onDone }) {
     <div className="row" style={{ flexWrap: 'wrap' }}>
       <div className="left" style={{ flex: '1 1 220px' }}>
         <div className="name">{item.name}</div>
-        <div className="meta">{item.date} · {item.amount < 0 ? `+${usd(item.amount)} in` : usd(item.amount)}</div>
+        <div className="meta">{item.date}, {item.amount < 0 ? `+${usd(item.amount)} in` : usd(item.amount)}</div>
         {error && <div className="error">{error}</div>}
       </div>
       <div className="actions" style={{ alignItems: 'center' }}>
@@ -46,7 +46,7 @@ function Item({ item, onDone }) {
           {OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <label className="muted" style={{ fontSize: 13, display: 'flex', gap: 4, alignItems: 'center' }}>
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> always
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Always
         </label>
         {bucket === item.guess && !remember ? (
           <button onClick={() => send({ confirm: true })} disabled={busy}>Looks right</button>
@@ -68,9 +68,9 @@ export default function Review({ items }) {
   };
   return (
     <div className="card">
-      <h2>Review ({left.length})</h2>
+      <h2>Needs review <span>{left.length}</span></h2>
       <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-        New or unusual transactions. Pick a category; “always” remembers it for that merchant.
+        New or unusual transactions. Pick a category, and Always remembers it for that merchant.
       </p>
       {left.map((i) => <Item key={i.id} item={i} onDone={done} />)}
       <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
